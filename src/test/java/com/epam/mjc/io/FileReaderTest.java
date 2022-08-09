@@ -1,15 +1,14 @@
 package com.epam.mjc.io;
 
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -17,22 +16,37 @@ import static org.junit.Assert.assertTrue;
 
 public class FileReaderTest {
 
-    private final static Path TEST_FILE = Path.of("src/main/resources/Profile.txt");
+    private final static Path TEST_FILE = Path.of("src/test/resources/test.txt");
     private final static Path READER_CLASS = Path.of("src/main/java/com/epam/mjc/io/FileReader.java");
-    private static final String PROFILE_PARAM_VALUE_DELIMETER = ": ";
-    private static final String SOURCE_CODE_LOCATION = "src/main/java";
+    private final static String SOURCE_CODE_LOCATION = "src/main/java";
+    private static Profile profile;
 
+    @BeforeClass
+    public static void setup() {
+        String randomString = RandomStringUtils.randomAlphabetic(5);
+        Integer randomInt = getRandomInt(1, 20);
+        profile = new Profile(randomString, randomInt, randomString, randomInt.longValue());
+        createTestFile(randomString, randomInt);
+    }
+
+    @AfterClass
+    public static void clean() {
+        try {
+            Files.delete(TEST_FILE);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Test
     public void testProgramReadsDataCorrectly () {
         FileReader fileReader = new FileReader();
         Profile actual = fileReader.getDataFromFile(new File(TEST_FILE.toUri()));
-        Profile expected = readFile(TEST_FILE);
-        assertEquals(expected, actual);
+        assertEquals(profile, actual);
     }
 
     @Test
-    public void testCodeWithoutExternalUtils() throws IOException {
+    public void testCodeWithoutProhibitedLibraries() throws IOException {
         final Path sources = Path.of(SOURCE_CODE_LOCATION);
         Files.walk(sources)
                 .filter(Files::isRegularFile)
@@ -43,18 +57,19 @@ public class FileReaderTest {
     @Test
     public void testCodeHasStreamClosing() {
         String sourceCode = readFileIntoString(READER_CLASS);
-        assertTrue(sourceCode.contains("try (") || sourceCode.contains("try(") || sourceCode.contains(".close()"));
+        assertTrue("Code doesn't contain closing or try-with-resources",
+                sourceCode.contains("try (") || sourceCode.contains("try(") || sourceCode.contains(".close()"));
     }
 
     private void assertSourceWithoutProhibitedLibraries(Path path) {
         String sourceCode = readFileIntoString(path);
-        assertFalse(sourceCode.contains(".nio"));
-        assertFalse(sourceCode.contains("Files"));
-        assertFalse(sourceCode.contains("FileUtils"));
-        assertFalse(sourceCode.contains("IOUtils"));
-        assertFalse(sourceCode.contains("Scanner"));
-        assertFalse(sourceCode.contains("StreamTokenizer"));
-        assertFalse(sourceCode.contains("FileChannel"));
+        assertFalse("Code contains prohibited \"nio\" library", sourceCode.contains(".nio"));
+        assertFalse("Code contains prohibited \"FileUtils\"", sourceCode.contains("FileUtils"));
+        assertFalse("Code contains prohibited \"IOUtils\"", sourceCode.contains("IOUtils"));
+        assertFalse("Code contains prohibited \"Scanner\"", sourceCode.contains("Scanner"));
+        assertFalse("Code contains prohibited \"StreamTokenizer\"",sourceCode.contains("StreamTokenizer"));
+        assertFalse("Code contains prohibited \"FileChannel\"", sourceCode.contains("FileChannel"));
+        assertFalse("Code contains prohibited \"com.google\"", sourceCode.contains("com.google"));
     }
 
     private String readFileIntoString(Path sourcePath) {
@@ -65,33 +80,20 @@ public class FileReaderTest {
         }
     }
 
-    private Profile readFile(Path path) {
-        Profile profile = new Profile();
+    public static int getRandomInt(int min, int max) {
+        return (int) ((Math.random() * (max - min)) + min);
+    }
+
+    public static void createTestFile(String randomString, Integer randomInt) {
         try {
-            Files.lines(path).forEach(line -> setValueToProfile(line, profile));
-            return profile;
+            FileUtils.writeStringToFile(new File(TEST_FILE.toUri()),
+                    "Name: " + randomString + System.lineSeparator() +
+                            "Age: "  + randomInt + System.lineSeparator() +
+                            "Email: " + randomString + System.lineSeparator() +
+                            "Phone: "  + randomInt + System.lineSeparator(),
+                    "UTF-8");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private void setValueToProfile(String line, Profile profile) {
-        Pair<String, String> keyValue = parseIntoParamValue(line);
-        String paramName = keyValue.getLeft();
-        String paramValue = keyValue.getRight();
-        if (paramName.equalsIgnoreCase("name")) {
-            profile.setName(paramValue);
-        } else if (paramName.equalsIgnoreCase("age")) {
-            profile.setAge(Integer.parseInt(paramValue));
-        } else if (paramName.equalsIgnoreCase("email")) {
-            profile.setEmail(paramValue);
-        } else if (paramName.equalsIgnoreCase("phone")) {
-            profile.setPhone(Long.parseLong(paramValue));
-        }
-    }
-
-    private Pair<String, String> parseIntoParamValue(String line) {
-        List<String> parsedString = Arrays.stream(line.split(PROFILE_PARAM_VALUE_DELIMETER)).collect(Collectors.toList());
-        return Pair.of(parsedString.get(0), parsedString.get(1));
     }
 }
