@@ -30,9 +30,4 @@ public class FileReader {
 }
 
 
-//public class FileReader {
 
-    //public Profile getDataFromFile(File file) {
-        //return new Profile();
-    //}
-//}
